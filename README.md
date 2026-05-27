@@ -79,14 +79,14 @@ Sistema completo de monitoramento de chão de fábrica utilizando dois ESP32 com
  
 | Componente             | Pino ESP32 |
 |------------------------|------------|
-| HC-SR04 TRIG           | GPIO 12    |
-| HC-SR04 ECHO           | GPIO 14    |
+| HC-SR04 TRIG           | GPIO 5     |
+| HC-SR04 ECHO           | GPIO 18    |
 | DHT22 DATA             | GPIO 4     |
-| Fotorresistor (LDR)    | GPIO 34    |
-| PIR OUT                | GPIO 35    |
-| LED Verde (+)          | GPIO 26    |
-| LED Vermelho (+)       | GPIO 27    |
-| LEDs (−)               | GND (330Ω) |
+| Fotorresistor (LDR)    | GPIO 1     |
+| PIR OUT                | GPIO 6     |
+| LED Verde (+)          | GPIO 7     |
+| LED Vermelho (+)       | GPIO 15    |
+| LEDs (−)               | GND        |
  
 ## Passo 1 — Instalar bibliotecas no Arduino IDE
  
