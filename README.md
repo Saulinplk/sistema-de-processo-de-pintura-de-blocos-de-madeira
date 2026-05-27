@@ -104,12 +104,18 @@ Grave temporariamente no ESP32 de **monitoramento** o código abaixo, abra o Mon
  
 ```cpp
 #include <WiFi.h>
+ const char* ssid = "SEU WIFI";
+const char* password = "SENHA";
+
+
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+ 
   Serial.println(WiFi.macAddress()); // ex: A4:CF:12:34:56:78
 }
 void loop() {}
+
 ```
  
 ## Passo 3 — Configurar o firmware `esp32_chao_fabrica.ino`
