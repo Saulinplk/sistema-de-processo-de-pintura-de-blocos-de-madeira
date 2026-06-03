@@ -7,6 +7,34 @@ Como rodar:
     python main.py
 """
 
+
+import socket
+
+def descobrir_ip_local() -> str:
+    """Descobre o IP da máquina na rede local (o que vai no ESP32)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))   # não conecta de fato, só escolhe a interface
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
+if __name__ == "__main__":
+    ip_local = descobrir_ip_local()
+    print("=" * 55)
+    print("  Backend IoT - Camada de Serviço")
+    print("  Supabase URL:", SUPABASE_URL)
+    print()
+    print(f"  >>> No ESP32 use:  http://{ip_local}:8000/dados <<<")
+    print(f"  Local:  http://127.0.0.1:8000")
+    print(f"  Docs:   http://{ip_local}:8000/docs")
+    print("=" * 55)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from supabase import create_client, Client
