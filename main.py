@@ -17,8 +17,8 @@ import os
 # =====================================================
 #   CONFIGURAÇÕES — edite aqui com seus dados Supabase
 # =====================================================
-SUPABASE_URL = "https://XXXXXXXXXXXXX.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # anon public key
+SUPABASE_URL = "https://augzulogqvewkqqssjus.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1Z3p1bG9ncXZld2txcXNzanVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTg2MzcsImV4cCI6MjA5NTQ3NDYzN30.44wY-pGzHvryrsPRJOu-yEVDgtm6jPwfkVwzJPQNZK4"  # anon public key
 
 # =====================================================
 #   CLIENTE SUPABASE
