@@ -1,18 +1,6 @@
 /*
  * ESP32 DE MONITORAMENTO - Camada de Serviço
- * -------------------------------------------------
- * Recebe dados via ESPNOW do ESP32 chão de fábrica,
- * exibe na matriz de LEDs e envia DIRETO ao Supabase via REST API.
- *
- * BIBLIOTECAS NECESSÁRIAS (instalar no Arduino IDE):
- *   - MD_Parola  (by majicDesigns)
- *   - MD_MAX72XX (by majicDesigns)
- *   - ArduinoJson (by Benoit Blanchon)
- *
- * PINAGEM:
- *   Matriz MAX7219: DIN=23, CLK=18, CS=5
- *   LED Verde     : GPIO 26
- *   LED Vermelho  : GPIO 27
+ * Recebe dados via ESPNOW e envia DIRETO ao Supabase via REST API.
  */
 
 #include <esp_now.h>
@@ -25,10 +13,8 @@
 #include <SPI.h>
 
 // =====================================================
-//   CONFIGURAÇÕES — edite aqui antes de gravar
+//   CONFIGURAÇÕES
 // =====================================================
-
-// --- Rede Wi-Fi ---
 const char* SSID     = "CIMATEC-VISITANTE";
 const char* PASSWORD = "";
 
@@ -38,7 +24,8 @@ const char* SUPABASE_TABELA = "leituras_chao";
 const char* SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1Z3p1bG9ncXZld2txcXNzanVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTg2MzcsImV4cCI6MjA5NTQ3NDYzN30.44wY-pGzHvryrsPRJOu-yEVDgtm6jPwfkVwzJPQNZK4";  // anon public key
 
 // --- MAC do ESP32 Chão de Fábrica (para validar origem) ---
-uint8_t MAC_CHAO_FABRICA[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+uint8_t MAC_CHAO_FABRICA[] = {0xB8, 0xF8, 0x62, 0xE4, 0x61, 0xA4};
+
 
 // =====================================================
 //   PINOS
@@ -55,18 +42,18 @@ uint8_t MAC_CHAO_FABRICA[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 MD_Parola matriz = MD_Parola(HARDWARE_TYPE, PIN_DIN, PIN_CLK, PIN_CS, NUM_DEVICES);
 
 // =====================================================
-//   ESTRUTURA DE DADOS (idêntica ao transmissor)
+//   ESTRUTURA — IDÊNTICA AO CHÃO DE FÁBRICA
 // =====================================================
 typedef struct __attribute__((packed)) {
-  float nivel_tinta;
-  float temperatura;
-  float umidade;
-  int   luminosidade;
-  int   presenca;
-  char  timestamp[25];
-} DadosSensores;
+  float    nivel_tinta;
+  float    temperatura;
+  float    umidade;
+  uint16_t luminosidade;
+  uint8_t  presenca;
+  uint32_t timestamp;
+} PacoteSensores;
 
-DadosSensores dadosAtuais;
+PacoteSensores dadosAtuais;
 volatile bool novoDadoFlag = false;
 unsigned long ultimaRecepcao  = 0;
 unsigned long ultimaTrocaTela = 0;
@@ -74,6 +61,8 @@ int telaAtual = 0;
 
 unsigned long tempoLedVerde = 0;
 bool ledVerdeAceso = false;
+
+char bufTela[32];
 
 // =====================================================
 //   CALLBACK ESPNOW
@@ -91,26 +80,25 @@ void IRAM_ATTR OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, 
     return;
   }
 
-  if (len == sizeof(DadosSensores)) {
-    memcpy(&dadosAtuais, data, sizeof(DadosSensores));
+  if (len == sizeof(PacoteSensores)) {
+    memcpy(&dadosAtuais, data, sizeof(PacoteSensores));
     novoDadoFlag  = true;
     ultimaRecepcao = millis();
   } else {
-    Serial.printf("[ESPNOW] Pacote com tamanho inesperado: %d bytes\n", len);
+    Serial.printf("[ESPNOW] Pacote com tamanho inesperado: %d bytes (esperado: %d)\n",
+                  len, sizeof(PacoteSensores));
   }
 }
 
 // =====================================================
 //   EXIBIÇÃO NA MATRIZ
 // =====================================================
-char bufTela[32];
-
 void prepararTextoTela(int tela) {
   switch (tela) {
     case 0: snprintf(bufTela, sizeof(bufTela), "NVL %.0f%%", dadosAtuais.nivel_tinta); break;
     case 1: snprintf(bufTela, sizeof(bufTela), "TMP %.1fC", dadosAtuais.temperatura);  break;
     case 2: snprintf(bufTela, sizeof(bufTela), "UMD %.0f%%", dadosAtuais.umidade);     break;
-    case 3: snprintf(bufTela, sizeof(bufTela), "LUX %03d",   dadosAtuais.luminosidade); break;
+    case 3: snprintf(bufTela, sizeof(bufTela), "LUX %03u",   dadosAtuais.luminosidade); break;
     case 4: snprintf(bufTela, sizeof(bufTela), "PRS %s", dadosAtuais.presenca ? "ON" : "OFF"); break;
   }
   const char* nomes[] = {"NVL", "TMP", "UMD", "LUX", "PRS"};
@@ -118,40 +106,34 @@ void prepararTextoTela(int tela) {
 }
 
 // =====================================================
-//   ENVIAR DADOS AO SUPABASE (REST API direta)
+//   ENVIA AO SUPABASE
 // =====================================================
-void enviarAoSupabase(DadosSensores& d) {
+void enviarAoSupabase(PacoteSensores& d) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[SUPABASE] WiFi desconectado, dados não enviados.");
     return;
   }
 
-  // Monta URL completa: https://...supabase.co/rest/v1/leituras_chao
   String url = String(SUPABASE_URL) + "/rest/v1/" + SUPABASE_TABELA;
 
-  // HTTPS com cliente seguro
   WiFiClientSecure client;
-  client.setInsecure();  // não valida certificado (mais simples)
+  client.setInsecure();
 
   HTTPClient http;
   http.begin(client, url);
   http.setTimeout(5000);
 
-  // Headers obrigatórios do Supabase
   http.addHeader("Content-Type", "application/json");
   http.addHeader("apikey", SUPABASE_KEY);
   http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Prefer", "return=minimal");  // não retorna a row criada (economia)
+  http.addHeader("Prefer", "return=minimal");
 
-  // Monta JSON
-  // NOTA: presenca é boolean no banco (true/false), não int
-  // NOTA: timestamp NÃO é enviado - Supabase preenche automaticamente com default now()
   StaticJsonDocument<256> doc;
   doc["nivel_tinta"]  = d.nivel_tinta;
   doc["temperatura"]  = d.temperatura;
   doc["umidade"]      = d.umidade;
   doc["luminosidade"] = d.luminosidade;
-  doc["presenca"]     = (d.presenca == 1);  // converte int para boolean
+  doc["presenca"]     = (d.presenca == 1);
 
   String payload;
   serializeJson(doc, payload);
@@ -209,7 +191,7 @@ void setup() {
     Serial.printf(">>> Informe ao ESP32 chão de fábrica: Canal WiFi = %d <<<\n",
       WiFi.channel());
   } else {
-    Serial.println("\n[WiFi] Falha na conexão. Continuando sem envio ao Supabase.");
+    Serial.println("\n[WiFi] Falha na conexão.");
   }
 
   if (esp_now_init() != ESP_OK) {
@@ -260,7 +242,7 @@ void loop() {
     ledVerdeAceso = true;
     tempoLedVerde = agora;
 
-    Serial.printf("[RX] nivel=%.1f%% temp=%.1fC umd=%.1f%% lux=%d prs=%d ts=%s\n",
+    Serial.printf("[RX] nivel=%.1f%% temp=%.1fC umd=%.1f%% lux=%u prs=%u ts=%u\n",
       dadosAtuais.nivel_tinta, dadosAtuais.temperatura, dadosAtuais.umidade,
       dadosAtuais.luminosidade, dadosAtuais.presenca, dadosAtuais.timestamp);
 
