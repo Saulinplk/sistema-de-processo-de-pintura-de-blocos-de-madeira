@@ -43,14 +43,14 @@ uint8_t MAC_CHAO_FABRICA[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 // =====================================================
 //   PINOS
 // =====================================================
-#define LED_VERDE    26
-#define LED_VERMELHO 27
+#define LED_VERDE    12
+#define LED_VERMELHO 17
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define NUM_DEVICES   4
 #define PIN_CS        5
 #define PIN_CLK       18
-#define PIN_DIN       23
+#define PIN_DIN       9
 
 MD_Parola matriz = MD_Parola(HARDWARE_TYPE, PIN_DIN, PIN_CLK, PIN_CS, NUM_DEVICES);
 
